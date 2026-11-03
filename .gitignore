@@ -1,0 +1,15 @@
+# Private data created on the live site (never commit these)
+admin/private/config.php
+admin/private/attempts.json
+admin/private/mail-rate.json
+admin/private/inquiries.jsonl
+admin/private/lock
+
+# Photos uploaded through the admin, and the list of them
+uploads/*.jpg
+uploads/t/*.jpg
+data/photos.json.tmp
+og-image.png
+
+.DS_Store
+Thumbs.db
