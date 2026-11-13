@@ -1,9 +1,13 @@
 <?php
 /* ==========================================================================
    RAWdez admin - setup.php
-   ONE-TIME page where Bryan chooses his own password. It deletes itself
-   when finished. Needs the setup code below so nobody else can claim the
-   login in the minutes between uploading and setting the password.
+   ONE-TIME page for choosing an admin password. It deletes itself when
+   finished. Needs the setup code below so nobody else can claim a login
+   in the minutes between uploading and setting the password.
+   - First use: sets Bryan's password.
+   - If Bryan's password already exists: adds Gavin's developer password
+     (a second login on top of Bryan's). To remove Gavin's login later,
+     delete the 'dev_hash' line from admin/private/config.php.
    ========================================================================== */
 const SETUP_CODE = 'CHANGE-ME-BEFORE-UPLOADING';   // pick your own random code before uploading
 
@@ -26,9 +30,14 @@ button{margin-top:20px;width:100%;font:inherit;font-weight:900;padding:15px;bord
     exit;
 }
 
-if (is_file(CONFIG)) {
+/* Which password is this page setting? */
+$cfg = is_file(CONFIG) ? (require CONFIG) : null;
+if (!is_array($cfg)) $cfg = null;
+$mode = $cfg ? 'dev' : 'bryan';
+
+if ($mode === 'dev' && !empty($cfg['dev_hash'])) {
     http_response_code(403);
-    page('<h1>RAW<b>dez</b></h1><p>Setup is already done. To start over, delete <code>admin/private/config.php</code> in cPanel File Manager and open this page again.</p>');
+    page('<h1>RAW<b>dez</b></h1><p>Setup is already done: both logins exist. Delete this file (<code>admin/setup.php</code>) in cPanel File Manager.</p>');
 }
 
 $err = '';
@@ -39,21 +48,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $p1 = (string)($_POST['p1'] ?? '');
     $p2 = (string)($_POST['p2'] ?? '');
     if ($wait) $err = 'Too many tries. Wait ' . ceil($wait / 60) . ' minutes.';
-    elseif (!hash_equals(SETUP_CODE, $code)) { rl_fail($key); $err = 'That setup code is not right.'; }
+    elseif (!hash_equals(strtoupper(SETUP_CODE), $code)) { rl_fail($key); $err = 'That setup code is not right.'; }
     elseif (strlen($p1) < 10) $err = 'Use at least 10 characters. A few random words works well.';
     elseif ($p1 !== $p2) $err = 'The two passwords do not match.';
+    elseif ($mode === 'dev' && password_verify($p1, $cfg['hash'])) $err = 'Pick a different password from Bryan\'s.';
     else {
-        $cfg = "<?php\nreturn " . var_export(['hash' => password_hash($p1, PASSWORD_DEFAULT), 'created' => date('c')], true) . ";\n";
-        if (file_put_contents(CONFIG, $cfg, LOCK_EX) === false) {
+        if ($mode === 'bryan') {
+            $cfg = ['hash' => password_hash($p1, PASSWORD_DEFAULT), 'created' => date('c')];
+        } else {
+            $cfg['dev_hash'] = password_hash($p1, PASSWORD_DEFAULT);   // Bryan's password is kept as it is
+        }
+        $out = "<?php\nreturn " . var_export($cfg, true) . ";\n";
+        if (file_put_contents(CONFIG, $out, LOCK_EX) === false) {
             $err = 'Could not save. Make sure the admin/private folder exists and is writable.';
         } else {
             @chmod(CONFIG, 0600);
             @unlink(__FILE__);
-            page('<h1>RAW<b>dez</b></h1><p><strong>All set.</strong> Your password is saved and this setup page has removed itself.</p><p><a href="index.php">Go to the admin login</a></p>');
+            page('<h1>RAW<b>dez</b></h1><p><strong>All set.</strong> ' . ($mode === 'dev' ? 'Your developer login is added. Bryan\'s password still works too.' : 'Your password is saved.') . ' This setup page has removed itself.</p><p><a href="index.php">Go to the admin login</a></p>');
         }
     }
 }
-page('<h1>RAW<b>dez</b> setup</h1><p>Choose the password you will use to log in to the photo admin. Nobody else will ever see it.</p>'
+
+$intro = $mode === 'dev'
+    ? 'Bryan\'s login already exists. This adds a <strong>second login for Gavin</strong> (developer). Bryan\'s password is not changed.'
+    : 'Choose the password you will use to log in to the photo admin. Nobody else will ever see it.';
+page('<h1>RAW<b>dez</b> setup</h1><p>' . $intro . '</p>'
    . ($err ? '<div class="err">' . htmlspecialchars($err) . '</div>' : '')
    . '<form method="post" autocomplete="off"><label>Setup code<input name="code" required autocomplete="off"></label>'
    . '<label>New password (10+ characters)<input type="password" name="p1" required autocomplete="new-password"></label>'

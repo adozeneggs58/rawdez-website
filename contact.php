@@ -5,7 +5,9 @@
    Bryan. Also keeps a copy in admin/private/inquiries.jsonl so an inquiry
    is never lost if Gmail sends one to spam. Bryan can read them in /admin/.
    ========================================================================== */
-const TO_EMAIL = 'ruadezphoto@gmail.com';
+/* Who gets the inquiry emails (separate addresses with a comma).
+   To stop Gavin's copies later, change this to: const TO_EMAIL = 'ruadezphoto@gmail.com'; */
+const TO_EMAIL = 'ruadezphoto@gmail.com, adozeneggsgaming@gmail.com';
 const TYPES = ['Graduation', 'Sports', 'Portraits', 'Life'];
 
 header('Content-Type: application/json');

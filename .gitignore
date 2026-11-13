@@ -13,3 +13,5 @@ og-image.png
 
 .DS_Store
 Thumbs.db
+admin/private/invoices.json
+admin/private/inv-lock

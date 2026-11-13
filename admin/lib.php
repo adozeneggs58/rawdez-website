@@ -231,3 +231,48 @@ function save_upload($tmp, $cat, $publish) {
     imagedestroy($main); imagedestroy($thumb);
     return $rec;
 }
+
+/* ---------- invoices (admin/private/invoices.json) ---------- */
+define('INV_FILE', PRIV . '/invoices.json');
+
+function inv_load() {
+    $d = is_file(INV_FILE) ? json_decode((string)file_get_contents(INV_FILE), true) : null;
+    if (!is_array($d)) $d = [];
+    if (!isset($d['next']) || !is_int($d['next'])) $d['next'] = 1;
+    if (!isset($d['list']) || !is_array($d['list'])) $d['list'] = [];
+    return $d;
+}
+
+/* Read, change and save the invoice list in one locked step. */
+function inv_mutate($fn) {
+    $fh = fopen(PRIV . '/inv-lock', 'c');
+    flock($fh, LOCK_EX);
+    try {
+        $d = inv_load();
+        $r = $fn($d);
+        if (file_put_contents(INV_FILE, json_encode($d, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), LOCK_EX) === false) {
+            throw new Exception('Could not save the invoice. Check that admin/private is writable.');
+        }
+        return $r;
+    } finally {
+        flock($fh, LOCK_UN);
+        fclose($fh);
+    }
+}
+
+function inv_find(array $d, $id) {
+    foreach ($d['list'] as $i => $v) if ($v['id'] === $id) return $i;
+    return -1;
+}
+
+function money($cents) { return '$' . number_format($cents / 100, 2); }
+
+function nice_date($ymd) {
+    $t = DateTime::createFromFormat('!Y-m-d', (string)$ymd);
+    return $t ? $t->format('F j, Y') : '';
+}
+
+function valid_date($ymd) {
+    $t = DateTime::createFromFormat('!Y-m-d', (string)$ymd);
+    return $t && $t->format('Y-m-d') === $ymd;
+}

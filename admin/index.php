@@ -28,6 +28,11 @@ function state() {
     return ['slots' => (object)$d['slots'], 'crops' => (object)$d['crops'], 'photos' => $d['photos']];
 }
 
+function inv_recent() {             // newest 50 invoices for the dashboard list
+    $l = array_reverse(inv_load()['list']);
+    return array_slice($l, 0, 50);
+}
+
 function shell_top($title) {
     global $nonce;
     return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><title>' . h($title) . '</title><style>
@@ -46,6 +51,127 @@ input[type=password],input[type=text]{padding:13px 14px;border-radius:12px;borde
 </style></head><body>';
 }
 
+/* ---------- invoice page ----------
+   Bryan's details at the top of every invoice. Change them here if they change. */
+const BIZ_NAME   = 'RAWdez Photography';
+const BIZ_OWNER  = 'Bryan Ruadez';
+const BIZ_PLACE  = 'Tampa, FL';
+const BIZ_EMAIL  = 'ruadezphoto@gmail.com';
+const BIZ_SITE   = 'rawdez.com';
+const PAYABLE_TO = 'Bryan Ruadez';
+
+function render_invoice($v) {
+    global $nonce;
+    $desc = $v['desc'] !== '' ? $v['desc'] : (($v['type'] !== '' ? $v['type'] . ' photography session' : 'Photography session') . ', edited digital images');
+    $client = '<strong>' . h($v['name']) . '</strong>'
+            . ($v['email'] !== '' ? '<br>' . h($v['email']) : '')
+            . ($v['phone'] !== '' ? '<br>' . h($v['phone']) : '');
+    ?>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Invoice <?= h($v['id']) ?> - <?= h($v['name']) ?></title>
+<style>
+:root{--cream:#efe6dd;--cherry:#9a0002;--ink:#171311;--gray:#6f6863;--line:rgba(23,19,17,.16)}
+*{box-sizing:border-box}
+body{margin:0;font-family:Archivo,Arial,Helvetica,sans-serif;background:#d9cfc5;color:var(--ink);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.bar{max-width:820px;margin:16px auto 0;display:flex;gap:10px;flex-wrap:wrap;padding:0 12px}
+.btn{border:0;border-radius:999px;padding:11px 18px;font-weight:800;cursor:pointer;background:var(--cherry);color:var(--cream);text-decoration:none;font:inherit;font-weight:800;font-size:.9rem}
+.btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.tip{max-width:820px;margin:8px auto 0;padding:0 12px;color:var(--gray);font-size:.85rem}
+.page{max-width:820px;margin:14px auto 30px;background:#fff;padding:48px;position:relative;overflow:hidden}
+.top{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;border-bottom:4px solid var(--cherry);padding-bottom:22px}
+.logo{font-weight:900;font-size:2.4rem;letter-spacing:-.06em;line-height:1}.logo b{color:var(--cherry)}
+.biz{color:var(--gray);line-height:1.5;margin-top:8px;font-size:.92rem}
+.biz strong{color:var(--ink)}
+.title{text-align:right}
+.title h1{margin:0;font-size:2rem;letter-spacing:.12em;color:var(--cherry)}
+.title table{margin-left:auto;margin-top:8px;border-collapse:collapse;font-size:.92rem}
+.title td{padding:2px 0 2px 14px;text-align:right}.title td:first-child{color:var(--gray)}
+.label{font-size:.72rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--gray);margin:28px 0 6px}
+.bill{line-height:1.5}
+table.items{width:100%;border-collapse:collapse;margin-top:28px}
+.items th{text-align:left;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--gray);border-bottom:1px solid var(--line);padding:10px 0}
+.items th:last-child,.items td:last-child{text-align:right}
+.items td{padding:16px 0;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.45}
+.items .sub{color:var(--gray);font-size:.88rem}
+.total{display:flex;justify-content:flex-end;margin-top:18px}
+.total div{background:var(--cream);border-radius:14px;padding:16px 22px;min-width:260px}
+.total .row{display:flex;justify-content:space-between;gap:20px}
+.total .big{font-size:1.5rem;font-weight:900;margin-top:4px}
+.pay{margin-top:30px;border:2px solid var(--ink);border-radius:14px;padding:16px 20px;line-height:1.55}
+.pay strong{color:var(--cherry)}
+.note{margin-top:18px;color:var(--gray);line-height:1.5;white-space:pre-wrap}
+.foot{margin-top:40px;text-align:center;color:var(--gray);font-size:.85rem}
+.stamp{position:absolute;top:225px;right:48px;transform:rotate(-10deg);border:4px solid #14501f;color:#14501f;border-radius:10px;font-weight:900;letter-spacing:.2em;padding:6px 18px;font-size:1.6rem;opacity:.85}
+@media(max-width:600px){.page{padding:26px}.title{text-align:left}.title table{margin-left:0}.title td{text-align:left;padding:2px 14px 2px 0}}
+@page{size:letter;margin:0.5in}
+@media print{body{background:#fff}.bar,.tip{display:none}.page{margin:0;padding:0;max-width:none}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <button class="btn" id="pdf" type="button">Save as PDF / Print</button>
+  <a class="btn ghost" href="index.php#invoices">Back to admin</a>
+</div>
+<p class="tip">To send it: press <strong>Save as PDF / Print</strong>, choose <strong>Save as PDF</strong> (on iPhone: Print, then the share button, then Save to Files), and attach the PDF to a text or email.</p>
+
+<div class="page">
+  <?php if (!empty($v['paid'])): ?><div class="stamp">PAID</div><?php endif; ?>
+  <div class="top">
+    <div>
+      <div class="logo">RAW<b>dez</b></div>
+      <div class="biz"><strong><?= h(BIZ_NAME) ?></strong><br><?= h(BIZ_OWNER) ?> &middot; <?= h(BIZ_PLACE) ?><br><?= h(BIZ_EMAIL) ?> &middot; <?= h(BIZ_SITE) ?></div>
+    </div>
+    <div class="title">
+      <h1>INVOICE</h1>
+      <table>
+        <tr><td>Invoice no.</td><td><strong><?= h($v['id']) ?></strong></td></tr>
+        <tr><td>Date issued</td><td><?= h(nice_date($v['issued'])) ?></td></tr>
+        <tr><td>Due date</td><td><strong><?= h(nice_date($v['due'])) ?></strong></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="label">Bill to</div>
+  <div class="bill"><?= $client ?></div>
+
+  <table class="items">
+    <tr><th>Description</th><th>Amount</th></tr>
+    <tr>
+      <td><?= nl2br(h($desc)) ?>
+        <?php if ($v['shoot'] !== ''): ?><div class="sub">Shoot date: <?= h(nice_date($v['shoot'])) ?></div><?php endif; ?>
+        <div class="sub">Photos delivered digitally.</div></td>
+      <td><?= h(money($v['cents'])) ?></td>
+    </tr>
+  </table>
+
+  <div class="total"><div>
+    <div class="row"><span>Total due</span><span>by <?= h(nice_date($v['due'])) ?></span></div>
+    <div class="big"><?= h(money($v['cents'])) ?></div>
+  </div></div>
+
+  <div class="pay">
+    <strong>Payment</strong><br>
+    Please pay by <?= h(nice_date($v['due'])) ?>. If paying by check, make it payable to <strong><?= h(PAYABLE_TO) ?></strong>.<br>
+    Please include the invoice number (<?= h($v['id']) ?>) with your payment.
+  </div>
+
+  <?php if ($v['note'] !== ''): ?><div class="note"><?= h($v['note']) ?></div><?php endif; ?>
+
+  <div class="foot">Thank you for choosing <?= h(BIZ_NAME) ?>!</div>
+</div>
+<script nonce="<?= h($nonce) ?>">
+document.getElementById('pdf').onclick = function(){ window.print(); };
+</script>
+</body>
+</html>
+<?php
+}
+
 /* ---------- not set up yet ---------- */
 if (!is_file(CONFIG)) {
     echo shell_top('RAWdez admin') . '<div class="login"><div class="box"><div class="logo">RAW<b>dez</b></div><p>The admin is not set up yet. Open <a href="setup.php">setup.php</a> to choose a password.</p></div></div></body></html>';
@@ -55,6 +181,16 @@ $cfg = require CONFIG;
 
 $action = $_POST['action'] ?? '';
 
+/* Two logins: Bryan's password ('hash') and Gavin's developer password ('dev_hash').
+   Returns 'bryan', 'dev', or '' if the password matches neither. */
+function check_login($cfg) {
+    if (!csrf_ok()) return '';
+    $pw = (string)($_POST['pw'] ?? '');
+    if (password_verify($pw, $cfg['hash'])) return 'bryan';
+    if (!empty($cfg['dev_hash']) && password_verify($pw, $cfg['dev_hash'])) return 'dev';
+    return '';
+}
+
 /* ---------- login ---------- */
 $loginErr = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'login') {
@@ -62,10 +198,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'login') {
     $wait = rl_wait($key);
     if ($wait) {
         $loginErr = 'Too many tries. Please wait ' . ceil($wait / 60) . ' minutes and try again.';
-    } elseif (csrf_ok() && password_verify((string)($_POST['pw'] ?? ''), $cfg['hash'])) {
+    } elseif (($who = check_login($cfg)) !== '') {
         rl_clear($key);
         session_regenerate_id(true);
         $_SESSION['ok'] = true;
+        $_SESSION['who'] = $who;
         $_SESSION['last'] = time();
         $_SESSION['csrf'] = bin2hex(random_bytes(16));
         header('Location: index.php');
@@ -162,12 +299,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action !== 'login') {
 
         if ($action === 'password') {
             $cur = (string)($_POST['cur'] ?? ''); $n1 = (string)($_POST['n1'] ?? ''); $n2 = (string)($_POST['n2'] ?? '');
-            if (!password_verify($cur, $cfg['hash'])) throw new Exception('Your current password is not right.');
+            $field = (($_SESSION['who'] ?? 'bryan') === 'dev') ? 'dev_hash' : 'hash';   // only changes the password of whoever is logged in
+            if (empty($cfg[$field]) || !password_verify($cur, $cfg[$field])) throw new Exception('Your current password is not right.');
             if (strlen($n1) < 10) throw new Exception('Use at least 10 characters.');
             if ($n1 !== $n2) throw new Exception('The new passwords do not match.');
-            $new = "<?php\nreturn " . var_export(['hash' => password_hash($n1, PASSWORD_DEFAULT), 'created' => $cfg['created'] ?? date('c')], true) . ";\n";
+            $cfg[$field] = password_hash($n1, PASSWORD_DEFAULT);
+            if (empty($cfg['created'])) $cfg['created'] = date('c');
+            $new = "<?php\nreturn " . var_export($cfg, true) . ";\n";
             if (file_put_contents(CONFIG, $new, LOCK_EX) === false) throw new Exception('Could not save the new password.');
             out(['ok' => true]);
+        }
+
+        if ($action === 'invoice_create') {
+            $clean = function ($k, $max) {
+                $v = trim(preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', (string)($_POST[$k] ?? '')));
+                return function_exists('mb_substr') ? mb_substr($v, 0, $max) : substr($v, 0, $max);
+            };
+            $inv = [
+                'name'  => $clean('name', 100),
+                'email' => $clean('email', 150),
+                'phone' => $clean('phone', 40),
+                'type'  => $clean('type', 40),
+                'desc'  => $clean('desc', 1000),
+                'shoot' => $clean('shoot', 10),
+                'due'   => $clean('due', 10),
+                'note'  => $clean('note', 600),
+            ];
+            if ($inv['name'] === '') throw new Exception('Enter the client\'s name.');
+            if ($inv['email'] !== '' && !filter_var($inv['email'], FILTER_VALIDATE_EMAIL)) throw new Exception('That client email does not look right.');
+            if ($inv['shoot'] !== '' && !valid_date($inv['shoot'])) throw new Exception('Pick a valid shoot date (or leave it empty).');
+            if (!valid_date($inv['due'])) throw new Exception('Pick a due date.');
+            $amt = str_replace([',', '$', ' '], '', (string)($_POST['amount'] ?? ''));
+            if (!preg_match('/^\d{1,7}(\.\d{1,2})?$/', $amt) || (float)$amt <= 0) throw new Exception('Enter the total price, like 150 or 150.00.');
+            $inv['cents'] = (int)round((float)$amt * 100);
+            $inv['issued'] = (new DateTime('now', new DateTimeZone('America/New_York')))->format('Y-m-d');
+            $inv['paid'] = false;
+            $id = inv_mutate(function (&$d) use ($inv) {
+                $inv['id'] = 'RAW-' . str_pad((string)$d['next'], 4, '0', STR_PAD_LEFT);
+                $d['next']++;
+                $d['list'][] = $inv;
+                return $inv['id'];
+            });
+            out(['ok' => true, 'id' => $id, 'inv' => inv_recent()]);
+        }
+
+        if ($action === 'invoice_paid' || $action === 'invoice_delete') {
+            $id = (string)($_POST['id'] ?? '');
+            inv_mutate(function (&$d) use ($id, $action) {
+                $i = inv_find($d, $id);
+                if ($i < 0) throw new Exception('Invoice not found.');
+                if ($action === 'invoice_delete') array_splice($d['list'], $i, 1);   // the number is never reused
+                else $d['list'][$i]['paid'] = ($_POST['paid'] ?? '') === '1';
+            });
+            out(['ok' => true, 'inv' => inv_recent()]);
         }
 
         throw new Exception('Unknown request.');
@@ -187,6 +371,16 @@ if (!authed()) {
     exit;
 }
 
+/* ---------- one invoice, ready to save as PDF ---------- */
+if (isset($_GET['invoice'])) {
+    $d = inv_load();
+    $i = inv_find($d, (string)$_GET['invoice']);
+    if ($i < 0) { http_response_code(404); exit('Invoice not found.'); }
+    $v = $d['list'][$i];
+    render_invoice($v);
+    exit;
+}
+
 /* ---------- dashboard ---------- */
 $inq = [];
 $lf = PRIV . '/inquiries.jsonl';
@@ -199,6 +393,8 @@ if (is_file($lf)) {
 }
 $boot = json_encode([
     'inq' => $inq,
+    'inv' => inv_recent(),
+    'types' => ['Graduation', 'Sports', 'Portraits', 'Life', 'Product', 'Event'],
     'csrf' => csrf_token(),
     'state' => state(),
     'slots' => slot_defs(),
@@ -236,6 +432,14 @@ h2{margin:0 0 6px;font-size:1.6rem;letter-spacing:-.04em}
 .controls{display:flex;gap:14px;flex-wrap:wrap;align-items:end;margin-bottom:14px}
 label{display:grid;gap:6px;font-weight:600;font-size:.82rem}
 select,input[type=text],input[type=password]{padding:10px 12px;border-radius:10px;border:1px solid rgba(23,19,17,.25);background:#fff}
+input[type=email],input[type=tel],input[type=date],input[inputmode=decimal],textarea{font:inherit;padding:10px 12px;border-radius:10px;border:1px solid rgba(23,19,17,.25);background:#fff}
+textarea{resize:vertical;min-height:70px}
+.invform{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;background:var(--light);border:1px solid var(--line);border-radius:18px;padding:20px}
+.invform .wide{grid-column:1/-1}
+.invform .req::after{content:" *";color:var(--cherry)}
+.money{position:relative}.money span{position:absolute;left:12px;bottom:11px;font-weight:700;color:var(--gray)}.money input{padding-left:24px;width:100%}
+.invl{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:var(--light);border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin-bottom:8px}
+.invl .who{font-weight:700}.invl .sm{color:var(--gray);font-size:.85rem;font-weight:400}
 .chk{display:flex;align-items:center;gap:8px;font-weight:600;font-size:.9rem;padding-bottom:10px}
 #log{margin:14px 0 0;padding:0;list-style:none;font-size:.85rem}
 #log li{padding:4px 0}#log .bad{color:var(--cherry);font-weight:600}
@@ -319,8 +523,28 @@ details{margin-top:8px}summary{cursor:pointer;font-weight:700}
   <div id="inq"></div>
 </section>
 
+<section id="invoices">
+  <h2>5. Invoices</h2>
+  <p class="help">Fill this in to make an invoice for a client, then save it as a PDF to text or email them. Tip: press <strong>Make invoice</strong> on a booking inquiry above to fill in the client's details for you. Fields with <span style="color:var(--cherry)">*</span> are required.</p>
+  <form class="invform" id="invform" autocomplete="off">
+    <label><span class="req">Client name</span><input type="text" name="name" maxlength="100" required></label>
+    <label>Client email<input type="email" name="email" maxlength="150"></label>
+    <label>Client phone<input type="tel" name="phone" maxlength="40"></label>
+    <label>Shoot type<select name="type" id="invtype"></select></label>
+    <label>Shoot date<input type="date" name="shoot"></label>
+    <label class="money"><span class="req">Total price</span><input type="text" inputmode="decimal" name="amount" placeholder="150.00" required><span>$</span></label>
+    <label><span class="req">Due date</span><input type="date" name="due" id="invdue" required></label>
+    <label class="wide">What it's for (optional)<textarea name="desc" maxlength="1000" placeholder="Leave empty for: [Shoot type] photography session, edited digital images"></textarea></label>
+    <label class="wide">Note to the client (optional)<textarea name="note" maxlength="600" placeholder="e.g. Thanks again! Your gallery link will be sent once payment is received."></textarea></label>
+    <div class="wide row"><button class="btn" type="submit">Create invoice</button><button class="btn ghost" type="reset">Clear</button></div>
+  </form>
+  <h3 style="margin:26px 0 10px">Recent invoices</h3>
+  <div id="invlist"></div>
+</section>
+
 <section>
   <h2>Account</h2>
+  <p class="help">Logged in as <strong><?= (($_SESSION['who'] ?? 'bryan') === 'dev') ? 'Gavin (developer)' : 'Bryan' ?></strong>. Changing the password below only changes yours.</p>
   <details><summary>Change my password</summary>
     <form class="pw" id="pwform">
       <label>Current password<input type="password" name="cur" required autocomplete="current-password"></label>
@@ -569,13 +793,64 @@ $('csave').onclick = function(){
 };
 
 function renderInq(){
-  var h = (B.inq || []).map(function(q){
+  var h = (B.inq || []).map(function(q, i){
     var d = new Date(q.t*1000).toLocaleString([], {dateStyle:'medium', timeStyle:'short'});
     return '<div class="inq"><div class="top"><span>'+esc(q.name)+' &middot; '+esc(q.type)+'</span><span class="when">'+esc(d)+'</span></div>' +
-      '<div><a href="mailto:'+esc(q.email)+'">'+esc(q.email)+'</a></div>' + (q.msg ? '<p>'+esc(q.msg)+'</p>' : '') + '</div>';
+      '<div><a href="mailto:'+esc(q.email)+'">'+esc(q.email)+'</a></div>' + (q.msg ? '<p>'+esc(q.msg)+'</p>' : '') +
+      '<div class="row" style="margin-top:10px"><button class="btn ghost sm" type="button" data-mkinv="'+i+'">Make invoice</button></div></div>';
   }).join('');
   $('inq').innerHTML = h || '<p class="help">No inquiries yet.</p>';
 }
+
+// ----- invoices -----
+function ymd(dt){ return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0'); }
+function niceDate(s){ if (!s) return ''; var p = s.split('-'); return new Date(+p[0], +p[1]-1, +p[2]).toLocaleDateString([], {dateStyle:'medium'}); }
+function defaultDue(){ var d = new Date(); d.setDate(d.getDate()+14); $('invdue').value = ymd(d); }   // due in 2 weeks unless changed
+$('invtype').innerHTML = '<option value="">(none)</option>' + B.types.map(function(t){ return '<option>'+esc(t)+'</option>'; }).join('');
+defaultDue();
+$('invform').addEventListener('reset', function(){ setTimeout(defaultDue, 0); });
+
+function renderInv(){
+  var h = (B.inv || []).map(function(v){
+    return '<div class="invl"><div><div class="who">'+esc(v.id)+' &middot; '+esc(v.name)+' &middot; $'+(v.cents/100).toFixed(2)+'</div>' +
+      '<div class="sm">Issued '+esc(niceDate(v.issued))+' &middot; due '+esc(niceDate(v.due))+'</div></div>' +
+      '<div class="row"><span class="badge '+(v.paid?'on':'off')+'">'+(v.paid?'Paid':'Unpaid')+'</span>' +
+      '<a class="btn sm" href="?invoice='+encodeURIComponent(v.id)+'" target="_blank" rel="noopener">Open / PDF</a>' +
+      '<button class="btn ghost sm" type="button" data-invpaid="'+esc(v.id)+'" data-to="'+(v.paid?'0':'1')+'">'+(v.paid?'Mark unpaid':'Mark paid')+'</button>' +
+      '<button class="btn danger sm" type="button" data-invdel="'+esc(v.id)+'">Delete</button></div></div>';
+  }).join('');
+  $('invlist').innerHTML = h || '<p class="help">No invoices yet.</p>';
+}
+
+$('invform').onsubmit = function(e){
+  e.preventDefault();
+  var fd = new FormData(e.target); fd.append('action','invoice_create');
+  var w = window.open('', '_blank');               // opened now so phones don't block the new tab
+  api(fd).then(function(j){
+    B.inv = j.inv; renderInv(); e.target.reset(); toast('Invoice '+j.id+' created');
+    if (w) w.location = '?invoice='+encodeURIComponent(j.id); else location.href = '?invoice='+encodeURIComponent(j.id);
+  }).catch(function(err){ if (w) w.close(); fail(err); });
+};
+
+document.addEventListener('click', function(e){
+  var b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.mkinv !== undefined) {
+    var q = B.inq[+b.dataset.mkinv], f = $('invform');
+    f.reset();
+    f.elements['name'].value = q.name || ''; f.elements['email'].value = q.email || '';
+    if (B.types.indexOf(q.type) >= 0) f.elements['type'].value = q.type;
+    $('invoices').scrollIntoView({behavior:'smooth'});
+    setTimeout(function(){ defaultDue(); f.elements['amount'].focus(); }, 300);
+  }
+  if (b.dataset.invpaid) {
+    call({action:'invoice_paid', id:b.dataset.invpaid, paid:b.dataset.to}).then(function(j){ B.inv = j.inv; renderInv(); }).catch(fail);
+  }
+  if (b.dataset.invdel) {
+    if (!confirm('Delete invoice '+b.dataset.invdel+'? This cannot be undone.')) return;
+    call({action:'invoice_delete', id:b.dataset.invdel}).then(function(j){ B.inv = j.inv; renderInv(); toast('Invoice deleted'); }).catch(fail);
+  }
+});
+renderInv();
 renderInq();
 render();
 </script>
